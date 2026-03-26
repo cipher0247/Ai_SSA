@@ -1,0 +1,56 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["user", "admin"] }
+      },
+      "required": ["uid", "email"]
+    },
+    "Video": {
+      "title": "Video Metadata",
+      "description": "Metadata for uploaded or analyzed videos",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "sportType": { "type": "string" },
+        "filePath": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "sportType", "filePath"]
+    },
+    "Report": {
+      "title": "Strategy Report",
+      "description": "AI-generated strategy analysis report",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "videoId": { "type": "string" },
+        "formation": { "type": "string" },
+        "strategy": { "type": "string" },
+        "counterStrategy": { "type": "string" },
+        "confidence": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "videoId", "formation", "strategy"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/videos/{videoId}": {
+      "schema": "Video",
+      "description": "Video metadata documents"
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Strategy analysis reports"
+    }
+  }
+}

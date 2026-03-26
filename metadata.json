@@ -1,5 +1,0 @@
-{
-  "name": "AI Sports Strategy Analyzer (AI-SSA)",
-  "description": "A high-performance sports analytics platform using AI for formation detection, strategy prediction, and competitive performance tracking.",
-  "requestFramePermissions": ["camera", "microphone", "display-capture"]
-}

@@ -40,7 +40,7 @@ function AnimatedRoutes({ user, setUser, logout }: any) {
 // PageWrapper is no longer needed as we animate the whole Routes container
 
 export default function App() {
-  const [user, setUser] = useState<{ userId: string; username: string } | null>(null);
+  const [user, setUser] = useState<{ id: number; username: string } | null>(null);
 
   useEffect(() => {
     const savedUser = localStorage.getItem("user");

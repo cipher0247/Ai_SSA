@@ -8,25 +8,13 @@ import html2canvas from "html2canvas";
 export default function ReportPage() {
   const { id } = useParams();
   const [report, setReport] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch(`/api/report/${id}`)
       .then(res => res.json())
-      .then(data => {
-        if (data.error) {
-          setError(data.error);
-        } else {
-          setReport(data);
-          setError(null);
-        }
-      })
-      .catch(err => {
-        console.error("Failed to fetch report:", err);
-        setError("Failed to load report. Please try again later.");
-      });
+      .then(data => setReport(data));
   }, [id]);
 
   const downloadPDF = async () => {
@@ -104,18 +92,6 @@ export default function ReportPage() {
       setIsDownloading(false);
     }
   };
-
-  if (error) {
-    return (
-      <div className="p-20 text-center text-red-500">
-        <h2 className="text-2xl font-bold mb-4">Error Loading Report</h2>
-        <p>{error}</p>
-        <Link to="/dashboard" className="mt-8 inline-block px-6 py-2 bg-orange-600 rounded-lg text-white font-bold">
-          BACK TO DASHBOARD
-        </Link>
-      </div>
-    );
-  }
 
   if (!report) return <div className="p-20 text-center">Loading Report...</div>;
 

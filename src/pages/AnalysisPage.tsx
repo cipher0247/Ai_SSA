@@ -6,7 +6,7 @@ import { analyzeStrategy, analyzeVideoFrame } from "../lib/gemini";
 import * as tf from "@tensorflow/tfjs";
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
 
-export default function AnalysisPage({ user }: { user: { id: number } }) {
+export default function AnalysisPage({ user }: { user: { userId: string } }) {
   const { sport } = useParams();
   const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
@@ -160,7 +160,7 @@ export default function AnalysisPage({ user }: { user: { id: number } }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: user.id,
+          userId: user.userId,
           sportType: sport,
           ...analysis,
         })

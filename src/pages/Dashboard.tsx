@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Dribbble, 
@@ -9,9 +9,10 @@ import {
   ChevronRight,
   LayoutGrid,
   Globe,
-  Activity
+  Activity,
+  Loader2
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 const INDOOR_SPORTS = [
   { name: "Chess", icon: "♟️", color: "from-slate-700 to-slate-900" },
@@ -27,8 +28,24 @@ const OUTDOOR_SPORTS = [
   { name: "Basketball", icon: "🏀", color: "from-red-700 to-red-900" },
 ];
 
-export default function Dashboard({ user }: { user: { username: string } }) {
+export default function Dashboard({ user }: { user: { userId: string; username: string } }) {
   const [activeTab, setActiveTab] = useState<"indoor" | "outdoor">("outdoor");
+  const [history, setHistory] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    fetch(`/api/history/${user.userId}`)
+      .then(res => res.json())
+      .then(data => {
+        setHistory(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("Failed to fetch history:", err);
+        setLoading(false);
+      });
+  }, [user.userId]);
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-12">
@@ -146,9 +163,31 @@ export default function Dashboard({ user }: { user: { username: string } }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              <HistoryRow sport="Football" formation="4-4-2" strategy="Defensive" date="2 hours ago" />
-              <HistoryRow sport="Basketball" formation="2-3 Zone" strategy="Offensive" date="Yesterday" />
-              <HistoryRow sport="Chess" formation="Sicilian Defense" strategy="Counter-Attack" date="2 days ago" />
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                    <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
+                    Loading history...
+                  </td>
+                </tr>
+              ) : history.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                    No analysis history found. Start by analyzing a sport!
+                  </td>
+                </tr>
+              ) : (
+                history.map((row) => (
+                  <HistoryRow 
+                    key={row.id} 
+                    sport={row.sportType} 
+                    formation={row.formation} 
+                    strategy={row.strategy} 
+                    date={new Date(row.createdAt).toLocaleDateString()} 
+                    onClick={() => navigate(`/report/${row.id}`)}
+                  />
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -182,15 +221,16 @@ function StatCard({ title, value, icon }: { title: string; value: string; icon: 
   );
 }
 
-function HistoryRow({ sport, formation, strategy, date }: any) {
+function HistoryRow({ sport, formation, strategy, date, onClick }: any) {
   return (
     <motion.tr 
       initial={{ opacity: 0, x: -20 }}
       whileInView={{ opacity: 1, x: 0 }}
       viewport={{ once: true }}
+      onClick={onClick}
       className="hover:bg-white/5 transition-colors group cursor-pointer"
     >
-      <td className="px-6 py-4 font-bold">{sport}</td>
+      <td className="px-6 py-4 font-bold capitalize">{sport?.replace("-", " ")}</td>
       <td className="px-6 py-4">
         <span className="px-3 py-1 bg-orange-500/10 text-orange-500 font-mono text-xs rounded-full border border-orange-500/20">
           {formation}

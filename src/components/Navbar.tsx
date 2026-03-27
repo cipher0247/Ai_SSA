@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { LogOut, LayoutDashboard, Activity, Camera, BarChart2, ShieldCheck } from "lucide-react";
 import { motion } from "motion/react";
 
-export default function Navbar({ user, onLogout }: { user: { username: string }; onLogout: () => void }) {
+export default function Navbar({ user, onLogout }: { user: { userId: string; username: string }; onLogout: () => void }) {
   const navigate = useNavigate();
 
   return (

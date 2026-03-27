@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Dribbble, 
@@ -9,9 +9,12 @@ import {
   ChevronRight,
   LayoutGrid,
   Globe,
-  Activity
+  Activity,
+  Loader2
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { db, handleFirestoreError, OperationType } from "../firebase";
+import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
 
 const INDOOR_SPORTS = [
   { name: "Chess", icon: "♟️", color: "from-slate-700 to-slate-900" },
@@ -27,8 +30,36 @@ const OUTDOOR_SPORTS = [
   { name: "Basketball", icon: "🏀", color: "from-red-700 to-red-900" },
 ];
 
-export default function Dashboard({ user }: { user: { username: string } }) {
+export default function Dashboard({ user }: { user: { userId: string; username: string } }) {
   const [activeTab, setActiveTab] = useState<"indoor" | "outdoor">("outdoor");
+  const [history, setHistory] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const q = query(
+          collection(db, "reports"),
+          where("userId", "==", user.userId),
+          orderBy("createdAt", "desc"),
+          limit(5)
+        );
+        const querySnapshot = await getDocs(q);
+        const reports = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setHistory(reports);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.LIST, "reports");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchHistory();
+  }, [user.userId]);
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-12">
@@ -135,22 +166,40 @@ export default function Dashboard({ user }: { user: { username: string } }) {
           <Link to="/analytics" className="text-orange-500 font-bold hover:underline">View All Reports</Link>
         </div>
         <div className="bg-white/5 rounded-3xl border border-white/10 overflow-hidden">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-bottom border-white/10 bg-white/5">
-                <th className="px-6 py-4 text-sm font-bold text-gray-400 uppercase tracking-widest">Sport</th>
-                <th className="px-6 py-4 text-sm font-bold text-gray-400 uppercase tracking-widest">Formation</th>
-                <th className="px-6 py-4 text-sm font-bold text-gray-400 uppercase tracking-widest">Strategy</th>
-                <th className="px-6 py-4 text-sm font-bold text-gray-400 uppercase tracking-widest">Date</th>
-                <th className="px-6 py-4 text-sm font-bold text-gray-400 uppercase tracking-widest">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              <HistoryRow sport="Football" formation="4-4-2" strategy="Defensive" date="2 hours ago" />
-              <HistoryRow sport="Basketball" formation="2-3 Zone" strategy="Offensive" date="Yesterday" />
-              <HistoryRow sport="Chess" formation="Sicilian Defense" strategy="Counter-Attack" date="2 days ago" />
-            </tbody>
-          </table>
+          {loading ? (
+            <div className="p-12 text-center">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-orange-500" />
+              <p className="text-gray-500 font-mono text-xs uppercase tracking-widest">Fetching Strategic Data...</p>
+            </div>
+          ) : history.length > 0 ? (
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-bottom border-white/10 bg-white/5">
+                  <th className="px-6 py-4 text-sm font-bold text-gray-400 uppercase tracking-widest">Sport</th>
+                  <th className="px-6 py-4 text-sm font-bold text-gray-400 uppercase tracking-widest">Formation</th>
+                  <th className="px-6 py-4 text-sm font-bold text-gray-400 uppercase tracking-widest">Strategy</th>
+                  <th className="px-6 py-4 text-sm font-bold text-gray-400 uppercase tracking-widest">Date</th>
+                  <th className="px-6 py-4 text-sm font-bold text-gray-400 uppercase tracking-widest">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {history.map((report) => (
+                  <HistoryRow 
+                    key={report.id}
+                    sport={report.sportType} 
+                    formation={report.formation} 
+                    strategy={report.strategy} 
+                    date={report.createdAt?.toDate ? report.createdAt.toDate().toLocaleDateString() : "Recent"} 
+                    onClick={() => navigate(`/report/${report.id}`)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="p-12 text-center">
+              <p className="text-gray-500">No analysis history found. Start your first session above!</p>
+            </div>
+          )}
         </div>
       </section>
     </div>
@@ -182,21 +231,22 @@ function StatCard({ title, value, icon }: { title: string; value: string; icon: 
   );
 }
 
-function HistoryRow({ sport, formation, strategy, date }: any) {
+function HistoryRow({ sport, formation, strategy, date, onClick }: any) {
   return (
     <motion.tr 
       initial={{ opacity: 0, x: -20 }}
       whileInView={{ opacity: 1, x: 0 }}
       viewport={{ once: true }}
+      onClick={onClick}
       className="hover:bg-white/5 transition-colors group cursor-pointer"
     >
-      <td className="px-6 py-4 font-bold">{sport}</td>
+      <td className="px-6 py-4 font-bold uppercase text-xs tracking-widest">{sport}</td>
       <td className="px-6 py-4">
         <span className="px-3 py-1 bg-orange-500/10 text-orange-500 font-mono text-xs rounded-full border border-orange-500/20">
           {formation}
         </span>
       </td>
-      <td className="px-6 py-4 text-blue-400">{strategy}</td>
+      <td className="px-6 py-4 text-blue-400 text-sm">{strategy}</td>
       <td className="px-6 py-4 text-gray-500 text-sm">{date}</td>
       <td className="px-6 py-4">
         <motion.button 

@@ -29,14 +29,18 @@
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
-        "videoId": { "type": "string" },
+        "sportType": { "type": "string" },
         "formation": { "type": "string" },
         "strategy": { "type": "string" },
         "counterStrategy": { "type": "string" },
+        "winningPlan": { "type": "string" },
         "confidence": { "type": "number" },
+        "playerPerformanceScore": { "type": "number" },
+        "playerStats": { "type": "array" },
+        "comparisonData": { "type": "array" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["userId", "videoId", "formation", "strategy"]
+      "required": ["userId", "sportType", "formation", "strategy", "counterStrategy", "confidence", "playerPerformanceScore", "playerStats", "createdAt"]
     }
   },
   "firestore": {

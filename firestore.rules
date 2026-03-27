@@ -1,43 +1,30 @@
-// ===============================================================
-// Assumed Data Model
-// ===============================================================
-//
-// Collection: users
-// Document ID: {userId}
-// Fields:
-//   - uid: string (required)
-//   - email: string (required, email format)
-//   - role: string (optional, enum: ['user', 'admin'])
-//
-// Collection: videos
-// Document ID: {videoId}
-// Fields:
-//   - userId: string (required)
-//   - sportType: string (required)
-//   - filePath: string (required)
-//   - createdAt: timestamp (optional)
-//
-// Collection: reports
-// Document ID: {reportId}
-// Fields:
-//   - userId: string (required)
-//   - videoId: string (required)
-//   - formation: string (required)
-//   - strategy: string (required)
-//   - counterStrategy: string (optional)
-//   - confidence: number (optional)
-//   - createdAt: timestamp (optional)
-//
-// ===============================================================
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: reports
+    // Document ID: auto-generated
+    // Fields:
+    //   - userId: string (required, immutable) - The UID of the user who owns this report
+    //   - sportType: string (required) - The type of sport analyzed
+    //   - formation: string (required) - The detected formation
+    //   - strategy: string (required) - The detected strategy
+    //   - counterStrategy: string (required) - The suggested counter strategy
+    //   - confidence: number (required, 0-1) - The AI's confidence level
+    //   - playerPerformanceScore: number (required, 0-100) - Overall team performance score
+    //   - playerStats: list (required) - Array of player statistics objects
+    //   - comparisonData: list (optional) - Array of player comparison data objects
+    //   - createdAt: timestamp (required, immutable) - When the report was created
+    //
+    // ===============================================================
 
     // ===============================================================
     // Helper Functions
     // ===============================================================
-
+    
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -50,65 +37,37 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == resource.data.userId;
     }
 
-    function isValidEmail(email) {
-      return email is string &&
-        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
-    }
-
-    function isAdmin() {
-      return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email == "ciphergaming472@gmail.com" && request.auth.token.email_verified == true));
-    }
-
-    // ===============================================================
-    // Domain Validators
-    // ===============================================================
-
-    function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email']) &&
-             data.uid is string && data.uid == request.auth.uid &&
-             isValidEmail(data.email) &&
-             (!('role' in data) || data.role in ['user', 'admin']);
-    }
-
-    function isValidVideo(data) {
-      return data.keys().hasAll(['userId', 'sportType', 'filePath']) &&
-             data.userId == request.auth.uid &&
-             data.sportType is string && data.sportType.size() < 100 &&
-             data.filePath is string && data.filePath.size() < 1000;
-    }
-
     function isValidReport(data) {
-      return data.keys().hasAll(['userId', 'videoId', 'formation', 'strategy']) &&
-             data.userId == request.auth.uid &&
-             data.videoId is string &&
-             data.formation is string && data.formation.size() < 200 &&
-             data.strategy is string && data.strategy.size() < 5000;
+      return data.keys().hasAll(['userId', 'sportType', 'formation', 'strategy', 'counterStrategy', 'confidence', 'playerPerformanceScore', 'playerStats', 'createdAt']) &&
+             data.userId is string &&
+             data.sportType is string && data.sportType.size() > 0 && data.sportType.size() < 100 &&
+             data.formation is string && data.formation.size() > 0 && data.formation.size() < 100 &&
+             data.strategy is string && data.strategy.size() > 0 && data.strategy.size() < 1000 &&
+             data.counterStrategy is string && data.counterStrategy.size() > 0 && data.counterStrategy.size() < 2000 &&
+             data.confidence is number && data.confidence >= 0 && data.confidence <= 1 &&
+             data.playerPerformanceScore is number && data.playerPerformanceScore >= 0 && data.playerPerformanceScore <= 100 &&
+             data.playerStats is list && data.playerStats.size() <= 50 &&
+             data.createdAt is timestamp;
     }
 
     // ===============================================================
-    // Rules
+    // Collection Rules
     // ===============================================================
-
-    match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'user' || isAdmin());
-      allow update: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
-    }
-
-    match /videos/{videoId} {
-      allow read: if isDocOwner() || isAdmin();
-      allow create: if isAuthenticated() && isValidVideo(request.resource.data);
-      allow update: if isDocOwner() && isValidVideo(request.resource.data) && request.resource.data.userId == resource.data.userId;
-      allow delete: if isDocOwner() || isAdmin();
-    }
 
     match /reports/{reportId} {
-      allow read: if isDocOwner() || isAdmin();
-      allow create: if isAuthenticated() && isValidReport(request.resource.data);
-      allow update: if isDocOwner() && isValidReport(request.resource.data) && request.resource.data.userId == resource.data.userId;
-      allow delete: if isDocOwner() || isAdmin();
+      // Allow users to read only their own reports
+      allow read: if isDocOwner();
+      
+      // Allow users to create reports for themselves
+      allow create: if isAuthenticated() && 
+                      request.resource.data.userId == request.auth.uid &&
+                      isValidReport(request.resource.data);
+      
+      // Reports are generally immutable once created in this app
+      allow update: if false;
+      
+      // Allow users to delete their own reports
+      allow delete: if isDocOwner();
     }
 
     // Default deny

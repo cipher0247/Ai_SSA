@@ -4,17 +4,32 @@ import { motion } from "motion/react";
 import { FileText, Download, Share2, ChevronLeft, Shield, Zap, Target, Award, Loader2 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
+import { db, handleFirestoreError, OperationType } from "../firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 export default function ReportPage() {
   const { id } = useParams();
   const [report, setReport] = useState<any>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const reportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch(`/api/report/${id}`)
-      .then(res => res.json())
-      .then(data => setReport(data));
+    const fetchReport = async () => {
+      if (!id) return;
+      try {
+        const docRef = doc(db, "reports", id);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setReport({ id: docSnap.id, ...docSnap.data() });
+        } else {
+          setError("Report not found.");
+        }
+      } catch (err) {
+        handleFirestoreError(err, OperationType.GET, `reports/${id}`);
+      }
+    };
+    fetchReport();
   }, [id]);
 
   const downloadPDF = async () => {
@@ -93,7 +108,15 @@ export default function ReportPage() {
     }
   };
 
-  if (!report) return <div className="p-20 text-center">Loading Report...</div>;
+  if (error) return <div className="p-20 text-center text-red-500 font-bold">{error}</div>;
+  if (!report) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
+        <p className="text-gray-500 font-mono uppercase tracking-widest">Retrieving Report...</p>
+      </div>
+    </div>
+  );
 
   return (
     <motion.div 
@@ -122,7 +145,7 @@ export default function ReportPage() {
               >
                 Match Analysis
               </motion.h1>
-              <p className="text-white/60 font-mono">REPORT ID: #{id?.padStart(6, '0')}</p>
+              <p className="text-white/60 font-mono uppercase">REPORT ID: {id}</p>
             </div>
             <div className="flex gap-4 print:hidden">
               <motion.button 
@@ -179,7 +202,7 @@ export default function ReportPage() {
             <div className="p-6 bg-white/5 rounded-2xl border border-white/5 text-gray-300 leading-relaxed">
               <p className="mb-4">The detected formation {report.formation} indicates a {report.strategy.toLowerCase()} approach. The team showed strong coordination in the mid-field but lacked depth in the final third.</p>
               <h4 className="text-white font-bold mb-2">Counter Strategy:</h4>
-              <p>{report.counter_strategy}</p>
+              <p>{report.counterStrategy || report.counter_strategy}</p>
             </div>
           </section>
 
@@ -197,9 +220,9 @@ export default function ReportPage() {
               }}
               className="grid gap-4"
             >
-              {report.playerStats?.map((stat: any) => (
+              {report.playerStats?.map((stat: any, idx: number) => (
                 <motion.div 
-                  key={stat.id} 
+                  key={stat.id || idx} 
                   variants={{
                     hidden: { opacity: 0, x: -20 },
                     visible: { opacity: 1, x: 0 }
@@ -208,8 +231,8 @@ export default function ReportPage() {
                   className="p-6 bg-white/5 rounded-2xl border border-white/5 flex justify-between items-center group hover:border-orange-500/30 transition-colors cursor-default"
                 >
                   <div>
-                    <h4 className="text-lg font-bold mb-1">{stat.player_id}</h4>
-                    <p className="text-xs text-gray-500">Suggested Role: <span className="text-orange-500 font-bold">{stat.suggested_role}</span></p>
+                    <h4 className="text-lg font-bold mb-1">{stat.playerId || stat.player_id}</h4>
+                    <p className="text-xs text-gray-500">Suggested Role: <span className="text-orange-500 font-bold">{stat.suggestedRole || stat.suggested_role}</span></p>
                   </div>
                   <div className="flex gap-8">
                     <StatMini label="Speed" value={stat.speed} />

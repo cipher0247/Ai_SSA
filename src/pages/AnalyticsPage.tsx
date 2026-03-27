@@ -4,33 +4,88 @@ import {
   LineChart, Line, Legend
 } from 'recharts';
 import { motion } from 'motion/react';
-import { Users, Activity, TrendingUp, Award } from 'lucide-react';
+import { Users, Activity, TrendingUp, Award, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { db, handleFirestoreError, OperationType } from '../firebase';
+import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 
-const PLAYER_DATA = [
-  { name: 'Player 1', movement: 85, speed: 70, participation: 90, stability: 60 },
-  { name: 'Player 2', movement: 40, speed: 55, participation: 65, stability: 95 },
-  { name: 'Player 3', movement: 75, speed: 85, participation: 70, stability: 50 },
-  { name: 'Player 4', movement: 60, speed: 65, participation: 80, stability: 75 },
-];
+export default function AnalyticsPage({ user }: { user: { userId: string; username: string } }) {
+  const [reports, setReports] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-const TEAM_COMPARISON = [
-  { subject: 'Attack', TeamA: 120, TeamB: 110, fullMark: 150 },
-  { subject: 'Defense', TeamA: 98, TeamB: 130, fullMark: 150 },
-  { subject: 'Possession', TeamA: 86, TeamB: 130, fullMark: 150 },
-  { subject: 'Coordination', TeamA: 99, TeamB: 100, fullMark: 150 },
-  { subject: 'Speed', TeamA: 85, TeamB: 90, fullMark: 150 },
-];
+  useEffect(() => {
+    const fetchReports = async () => {
+      try {
+        const q = query(
+          collection(db, "reports"),
+          where("userId", "==", user.userId),
+          orderBy("createdAt", "desc")
+        );
+        const querySnapshot = await getDocs(q);
+        const data = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setReports(data);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.LIST, "reports");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-const PERFORMANCE_TREND = [
-  { time: '10m', intensity: 40 },
-  { time: '20m', intensity: 65 },
-  { time: '30m', intensity: 80 },
-  { time: '40m', intensity: 55 },
-  { time: '50m', intensity: 90 },
-  { time: '60m', intensity: 75 },
-];
+    fetchReports();
+  }, [user.userId]);
 
-export default function AnalyticsPage({ user }: any) {
+  // Aggregate data for charts
+  const playerData = reports.length > 0 ? reports[0].playerStats?.slice(0, 5).map((p: any) => ({
+    name: p.playerId,
+    movement: p.movement * 10,
+    speed: p.speed * 10,
+    participation: p.participation * 10,
+    stability: p.stability * 10
+  })) : [];
+
+  const teamComparison = reports.length > 0 ? [
+    { subject: 'Attack', TeamA: reports[0].playerPerformanceScore, TeamB: 70, fullMark: 100 },
+    { subject: 'Defense', TeamA: 80, TeamB: 85, fullMark: 100 },
+    { subject: 'Possession', TeamA: 65, TeamB: 60, fullMark: 100 },
+    { subject: 'Coordination', TeamA: 90, TeamB: 80, fullMark: 100 },
+    { subject: 'Speed', TeamA: 75, TeamB: 70, fullMark: 100 },
+  ] : [];
+
+  const performanceTrend = reports.slice(0, 6).reverse().map((r, i) => ({
+    time: r.createdAt?.toDate ? r.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `T-${i}`,
+    intensity: r.playerPerformanceScore
+  }));
+
+  if (loading) {
+    return (
+      <div className="min-h-[calc(100vh-80px)] flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
+          <p className="text-gray-500 font-mono uppercase tracking-widest">Compiling Analytics...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (reports.length === 0) {
+    return (
+      <div className="max-w-7xl mx-auto px-6 py-12 text-center">
+        <h2 className="text-4xl font-black uppercase tracking-tighter mb-4">No Data Available</h2>
+        <p className="text-gray-500 mb-8">Run your first AI analysis to see performance metrics here.</p>
+        <motion.button 
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="px-8 py-4 bg-orange-600 text-white font-bold rounded-xl"
+          onClick={() => window.location.href = '/dashboard'}
+        >
+          START ANALYSIS
+        </motion.button>
+      </div>
+    );
+  }
   return (
     <div className="max-w-7xl mx-auto px-6 py-12">
       <header className="mb-12">
@@ -51,7 +106,7 @@ export default function AnalyticsPage({ user }: any) {
           </div>
           <div className="h-[350px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={PLAYER_DATA}>
+              <BarChart data={playerData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                 <XAxis dataKey="name" stroke="#666" />
                 <YAxis stroke="#666" />
@@ -79,7 +134,7 @@ export default function AnalyticsPage({ user }: any) {
           </div>
           <div className="h-[350px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <RadarChart cx="50%" cy="50%" outerRadius="80%" data={TEAM_COMPARISON}>
+              <RadarChart cx="50%" cy="50%" outerRadius="80%" data={teamComparison}>
                 <PolarGrid stroke="#333" />
                 <PolarAngleAxis dataKey="subject" stroke="#666" />
                 <PolarRadiusAxis stroke="#333" />
@@ -105,7 +160,7 @@ export default function AnalyticsPage({ user }: any) {
           </div>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={PERFORMANCE_TREND}>
+              <LineChart data={performanceTrend}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                 <XAxis dataKey="time" stroke="#666" />
                 <YAxis stroke="#666" />
@@ -128,7 +183,7 @@ export default function AnalyticsPage({ user }: any) {
             <Award className="text-yellow-500" />
             <h3 className="text-xl font-bold">AI Role Suggestions</h3>
           </div>
-          <motion.div 
+            <motion.div 
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true }}
@@ -137,21 +192,14 @@ export default function AnalyticsPage({ user }: any) {
             }}
             className="space-y-6"
           >
-            <RoleSuggestion 
-              player="Player 1" 
-              role="STRIKER" 
-              reason="High movement and speed metrics suggest offensive dominance." 
-            />
-            <RoleSuggestion 
-              player="Player 2" 
-              role="DEFENDER" 
-              reason="Exceptional position stability and defensive coordination." 
-            />
-            <RoleSuggestion 
-              player="Player 3" 
-              role="WINGER" 
-              reason="Top-tier speed and participation in transition phases." 
-            />
+            {reports[0].playerStats?.slice(0, 3).map((p: any) => (
+              <RoleSuggestion 
+                key={p.playerId}
+                player={p.playerId} 
+                role={p.suggestedRole || "PLAYER"} 
+                reason={`Performance score of ${Math.round(p.movement * 10)} in movement suggests high tactical adaptability.`} 
+              />
+            ))}
           </motion.div>
         </motion.div>
       </div>

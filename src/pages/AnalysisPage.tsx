@@ -5,8 +5,10 @@ import { Upload, Play, CheckCircle, Loader2, Shield, Zap, Target, Activity } fro
 import { analyzeStrategy, analyzeVideoFrame } from "../lib/gemini";
 import * as tf from "@tensorflow/tfjs";
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
+import { db, handleFirestoreError, OperationType } from "../firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
-export default function AnalysisPage({ user }: { user: { id: number } }) {
+export default function AnalysisPage({ user }: { user: { userId: string; username: string } }) {
   const { sport } = useParams();
   const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
@@ -156,21 +158,29 @@ export default function AnalysisPage({ user }: { user: { id: number } }) {
         ];
       }
 
-      const saveRes = await fetch("/api/save-report", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user.id,
-          sportType: sport,
-          ...analysis,
-        })
-      });
-      const data = await saveRes.json();
+      try {
+        const reportData = {
+          userId: user.userId,
+          sportType: sport || "general",
+          formation: analysis.formation,
+          strategy: analysis.strategy,
+          counterStrategy: analysis.counterStrategy,
+          winningPlan: analysis.winningPlan,
+          confidence: analysis.confidence,
+          playerPerformanceScore: analysis.playerPerformanceScore,
+          playerStats: analysis.playerStats,
+          createdAt: serverTimestamp(),
+        };
 
-      setResult({
-        ...analysis,
-        reportId: data.reportId
-      });
+        const docRef = await addDoc(collection(db, "reports"), reportData);
+        
+        setResult({
+          ...analysis,
+          reportId: docRef.id
+        });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, "reports");
+      }
 
     } catch (e) {
       console.error(e);

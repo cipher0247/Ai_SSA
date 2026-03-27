@@ -1,19 +1,18 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { Upload, Play, CheckCircle, Loader2, Shield, Zap, Target, Activity } from "lucide-react";
+import { Upload, Play, CheckCircle, Loader2, Shield, Zap, Target, Activity, AlertCircle } from "lucide-react";
 import { analyzeStrategy, analyzeVideoFrame } from "../lib/gemini";
 import * as tf from "@tensorflow/tfjs";
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
-import { db, handleFirestoreError, OperationType } from "../firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
-export default function AnalysisPage({ user }: { user: { userId: string; username: string } }) {
+export default function AnalysisPage({ user }: { user: { id: number } }) {
   const { sport } = useParams();
   const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [result, setResult] = useState<any>(null);
   const [model, setModel] = useState<cocoSsd.ObjectDetection | null>(null);
@@ -46,6 +45,7 @@ export default function AnalysisPage({ user }: { user: { userId: string; usernam
   const handleUpload = async () => {
     if (!file) return;
     setAnalyzing(true);
+    setError(null);
     setResult(null);
     
     // Start playing video for analysis
@@ -158,32 +158,25 @@ export default function AnalysisPage({ user }: { user: { userId: string; usernam
         ];
       }
 
-      try {
-        const reportData = {
-          userId: user.userId,
-          sportType: sport || "general",
-          formation: analysis.formation,
-          strategy: analysis.strategy,
-          counterStrategy: analysis.counterStrategy,
-          winningPlan: analysis.winningPlan,
-          confidence: analysis.confidence,
-          playerPerformanceScore: analysis.playerPerformanceScore,
-          playerStats: analysis.playerStats,
-          createdAt: serverTimestamp(),
-        };
-
-        const docRef = await addDoc(collection(db, "reports"), reportData);
-        
-        setResult({
+      const saveRes = await fetch("/api/save-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          sportType: sport,
           ...analysis,
-          reportId: docRef.id
-        });
-      } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, "reports");
-      }
+        })
+      });
+      const data = await saveRes.json();
 
-    } catch (e) {
+      setResult({
+        ...analysis,
+        reportId: data.reportId
+      });
+
+    } catch (e: any) {
       console.error(e);
+      setError(e.message || "AI Analysis failed. Please try again.");
     } finally {
       setAnalyzing(false);
       if (videoRef.current) videoRef.current.pause();
@@ -200,6 +193,16 @@ export default function AnalysisPage({ user }: { user: { userId: string; usernam
       </header>
 
       <div className="grid gap-8">
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 text-sm flex items-center gap-3"
+          >
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <p className="font-medium">{error}</p>
+          </motion.div>
+        )}
         {!result && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}

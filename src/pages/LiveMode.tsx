@@ -199,8 +199,16 @@ export default function LiveMode() {
             ...prev.slice(0, 5)
           ]);
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error("Live AI Analysis failed", e);
+        setLogs(prev => [
+          { 
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), 
+            text: `[AI Error] ${e.message || "Analysis failed"}`,
+            color: "text-red-500"
+          },
+          ...prev.slice(0, 5)
+        ]);
       } finally {
         isAnalyzing = false;
       }

@@ -29,10 +29,15 @@ export default function AuthPage({ onLogin }: { onLogin: (user: any) => void }) 
       localStorage.setItem("user", JSON.stringify(userData));
       onLogin(userData);
     } catch (e: any) {
-      if (e.code === "auth/operation-not-allowed") {
+      const errorCode = e.code || "";
+      const errorMessage = e.message || "";
+
+      if (errorCode === "auth/operation-not-allowed") {
         setError("Google Sign-In is not enabled in Firebase Console.");
+      } else if (errorCode === "auth/unauthorized-domain" || errorMessage.includes("unauthorized-domain")) {
+        setError(`This domain (${window.location.hostname}) is not authorized in Firebase Console. Please ensure this exact string is added to Authorized Domains.`);
       } else {
-        setError(e.message || "Google Sign-In failed");
+        setError(errorMessage || "Google Sign-In failed");
       }
     } finally {
       setLoading(false);
@@ -60,10 +65,15 @@ export default function AuthPage({ onLogin }: { onLogin: (user: any) => void }) 
         onLogin(userData);
       }
     } catch (e: any) {
-      if (e.code === "auth/operation-not-allowed") {
+      const errorCode = e.code || "";
+      const errorMessage = e.message || "";
+      
+      if (errorCode === "auth/operation-not-allowed") {
         setError("Email/Password login is not enabled in Firebase Console. Please enable it in Authentication > Sign-in method.");
+      } else if (errorCode === "auth/unauthorized-domain" || errorMessage.includes("unauthorized-domain")) {
+        setError(`This domain (${window.location.hostname}) is not authorized in Firebase Console. Please ensure this exact string is added to Authorized Domains.`);
       } else {
-        setError(e.message || "Authentication error");
+        setError(errorMessage || "Authentication error");
       }
     } finally {
       setLoading(false);
@@ -213,13 +223,19 @@ export default function AuthPage({ onLogin }: { onLogin: (user: any) => void }) 
           </motion.div>
         </AnimatePresence>
 
-        <div className="mt-8 text-center">
+        <div className="mt-8 text-center space-y-4">
           <button
             onClick={() => setIsLogin(!isLogin)}
             className="text-sm text-gray-500 hover:text-orange-500 transition-colors"
           >
             {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
           </button>
+          
+          <div className="pt-4 border-t border-white/5">
+            <p className="text-[10px] text-gray-600 font-mono uppercase tracking-widest">
+              Debug Domain: {window.location.hostname}
+            </p>
+          </div>
         </div>
       </motion.div>
     </div>

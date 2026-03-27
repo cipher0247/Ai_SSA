@@ -32,17 +32,28 @@ export default function Dashboard({ user }: { user: { userId: string; username: 
   const [activeTab, setActiveTab] = useState<"indoor" | "outdoor">("outdoor");
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetch(`/api/history/${user.userId}`)
       .then(res => res.json())
       .then(data => {
-        setHistory(data);
+        if (data.error) {
+          setError(data.error);
+          setHistory([]);
+        } else if (Array.isArray(data)) {
+          setHistory(data);
+          setError(null);
+        } else {
+          setHistory([]);
+        }
         setLoading(false);
       })
       .catch(err => {
         console.error("Failed to fetch history:", err);
+        setError("Failed to load history. Please try again later.");
+        setHistory([]);
         setLoading(false);
       });
   }, [user.userId]);
@@ -170,6 +181,19 @@ export default function Dashboard({ user }: { user: { userId: string; username: 
                     Loading history...
                   </td>
                 </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-red-500">
+                    <p className="font-bold mb-2">Error loading history</p>
+                    <p className="text-sm opacity-80">{error}</p>
+                    {error.includes("index") && (
+                      <p className="mt-4 text-xs text-gray-400">
+                        Firestore requires a composite index for this query. 
+                        Please check the console for the index creation link.
+                      </p>
+                    )}
+                  </td>
+                </tr>
               ) : history.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
@@ -180,10 +204,10 @@ export default function Dashboard({ user }: { user: { userId: string; username: 
                 history.map((row) => (
                   <HistoryRow 
                     key={row.id} 
-                    sport={row.sportType} 
+                    sport={row.sport_type} 
                     formation={row.formation} 
                     strategy={row.strategy} 
-                    date={new Date(row.createdAt).toLocaleDateString()} 
+                    date={row.created_at ? new Date(row.created_at).toLocaleDateString() : "N/A"} 
                     onClick={() => navigate(`/report/${row.id}`)}
                   />
                 ))

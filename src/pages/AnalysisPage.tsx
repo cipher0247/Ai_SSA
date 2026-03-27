@@ -14,6 +14,7 @@ export default function AnalysisPage({ user }: { user: { userId: string } }) {
   const [analyzing, setAnalyzing] = useState(false);
   const [step, setStep] = useState(0);
   const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
   const [model, setModel] = useState<cocoSsd.ObjectDetection | null>(null);
   const [detections, setDetections] = useState<cocoSsd.DetectedObject[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -45,6 +46,7 @@ export default function AnalysisPage({ user }: { user: { userId: string } }) {
     if (!file) return;
     setAnalyzing(true);
     setResult(null);
+    setError(null);
     
     // Start playing video for analysis
     if (videoRef.current) {
@@ -172,8 +174,9 @@ export default function AnalysisPage({ user }: { user: { userId: string } }) {
         reportId: data.reportId
       });
 
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setError(e.message || "An unexpected error occurred during analysis.");
     } finally {
       setAnalyzing(false);
       if (videoRef.current) videoRef.current.pause();
@@ -190,6 +193,15 @@ export default function AnalysisPage({ user }: { user: { userId: string } }) {
       </header>
 
       <div className="grid gap-8">
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-center font-bold"
+          >
+            {error}
+          </motion.div>
+        )}
         {!result && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}

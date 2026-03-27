@@ -20,11 +20,37 @@ const databaseId = "ai-studio-395673ba-245d-4d69-8f76-28e53dc1e116";
 const db = getFirestore(databaseId);
 
 // Gemini Setup
-const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+const GEMINI_KEY = process.env.GEMINI_API_KEY;
+if (!GEMINI_KEY) {
+  console.warn("WARNING: GEMINI_API_KEY is not set. AI features will not work.");
+}
+// Initialize with the key if it exists, otherwise we'll handle it in the routes
+const genAI = GEMINI_KEY ? new GoogleGenAI({ apiKey: GEMINI_KEY }) : null;
 
 app.use(express.json());
 
+// Helper to check AI availability
+const checkAI = (res: express.Response) => {
+  if (!genAI) {
+    res.status(503).json({ 
+      error: "AI Service Unavailable", 
+      message: "The Gemini API key is missing. Please set GEMINI_API_KEY in your environment variables." 
+    });
+    return false;
+  }
+  return true;
+};
+
 // API Routes
+app.get("/api/health", (req, res) => {
+  res.json({ 
+    status: "ok", 
+    geminiKeySet: !!GEMINI_KEY,
+    geminiKeyLength: GEMINI_KEY ? GEMINI_KEY.length : 0,
+    firebaseProjectId: admin.app().options.projectId
+  });
+});
+
 app.get("/api/history/:userId", async (req, res) => {
   try {
     const reportsSnapshot = await db.collection("reports")
@@ -32,10 +58,14 @@ app.get("/api/history/:userId", async (req, res) => {
       .orderBy("created_at", "desc")
       .get();
     
-    const reports = reportsSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const reports = reportsSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        created_at: data.created_at?.toDate?.()?.toISOString() || data.created_at
+      };
+    });
     res.json(reports);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -87,12 +117,18 @@ app.get("/api/report/:reportId", async (req, res) => {
       return res.status(404).json({ error: "Report not found" });
     }
     
+    const data = reportDoc.data();
     const statsSnapshot = await db.collection("player_stats")
       .where("report_id", "==", req.params.reportId)
       .get();
     
     const stats = statsSnapshot.docs.map(doc => doc.data());
-    res.json({ ...reportDoc.data(), id: reportDoc.id, playerStats: stats });
+    res.json({ 
+      ...data, 
+      id: reportDoc.id, 
+      playerStats: stats,
+      created_at: data?.created_at?.toDate?.()?.toISOString() || data?.created_at
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -100,9 +136,10 @@ app.get("/api/report/:reportId", async (req, res) => {
 
 // AI Endpoints
 app.post("/api/ai/analyze-frame", async (req, res) => {
+  if (!checkAI(res)) return;
   try {
     const { sport, base64Image, detectionsContext } = req.body;
-    const response = await genAI.models.generateContent({
+    const response = await genAI!.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: [
         {
@@ -161,9 +198,10 @@ app.post("/api/ai/analyze-frame", async (req, res) => {
 });
 
 app.post("/api/ai/analyze-strategy", async (req, res) => {
+  if (!checkAI(res)) return;
   try {
     const { sport, formation, context } = req.body;
-    const response = await genAI.models.generateContent({
+    const response = await genAI!.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `Analyze the following sports scenario:
       Sport: ${sport}
@@ -187,14 +225,16 @@ app.post("/api/ai/analyze-strategy", async (req, res) => {
     });
     res.json(JSON.parse(response.text));
   } catch (error: any) {
+    console.error("AI Strategy Error:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
 app.post("/api/ai/chat", async (req, res) => {
+  if (!checkAI(res)) return;
   try {
     const { message } = req.body;
-    const response = await genAI.models.generateContent({
+    const response = await genAI!.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `You are the AI Sports Strategy Analyzer (AI-SSA) assistant. 
       Help the user with app features, sports strategy, or performance analytics.
@@ -202,11 +242,14 @@ app.post("/api/ai/chat", async (req, res) => {
     });
     res.json({ text: response.text });
   } catch (error: any) {
+    console.error("AI Chat Error:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // Vite Integration
+export const app_instance = app;
+
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -222,9 +265,14 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  // Only listen if not on Vercel
+  if (!process.env.VERCEL) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }
 }
 
 startServer();
+
+export default app;
